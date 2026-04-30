@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Chauffeur Command Center | Voice-Activated Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* reduce accidental selection on taps */
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0f1e, #03060c);
+            font-family: 'Segoe UI', 'Poppins', system-ui, -apple-system, 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        /* main dashboard glass panel */
+        .dashboard {
+            max-width: 1400px;
+            width: 100%;
+            background: rgba(12, 18, 28, 0.75);
+            backdrop-filter: blur(12px);
+            border-radius: 3rem;
+            border: 1px solid rgba(71, 199, 255, 0.25);
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 255, 255, 0.1) inset;
+            padding: 1.8rem;
+            transition: all 0.2s;
+        }
+
+        /* header + voice status */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid rgba(71, 199, 255, 0.4);
+            padding-bottom: 1rem;
+        }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #c0f2ff, #4aa9ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h1 small {
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.5);
+            color: #6ec8ff;
+            padding: 0.2rem 0.8rem;
+            border-radius: 40px;
+            font-weight: normal;
+        }
+        .voice-badge {
+            background: #0f212e;
+            padding: 0.5rem 1rem;
+            border-radius: 60px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+            border-left: 3px solid #2dd4bf;
+        }
+        .mic-icon {
+            width: 40px;
+            height: 40px;
+            background: #1e2a3a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            transition: 0.2s;
+            cursor: pointer;
+            box-shadow: 0 0 5px cyan;
+        }
+        .mic-icon.active {
+            background: #0a9f8e;
+            box-shadow: 0 0 12px #00ffe0;
+            animation: pulse 1.2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 #00ffe080; }
+            70% { box-shadow: 0 0 0 8px rgba(0,255,224,0); }
+            100% { box-shadow: 0 0 0 0 rgba(0,255,224,0); }
+        }
+        .status-text {
+            font-size: 0.9rem;
+            color: #b9e6ff;
+        }
+
+        /* grid of app buttons + widgets */
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0 1.8rem;
+        }
+
+        .card {
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(4px);
+            border-radius: 2rem;
+            padding: 1.2rem 1rem 1rem 1rem;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            transition: transform 0.1s ease, border-color 0.2s;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        .card:hover {
+            border-color: #3bc9ff;
+            transform: translateY(-3px);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            font-weight: bold;
+            color: #abd9ff;
+            border-left: 3px solid #2dd4bf;
+            padding-left: 12px;
+        }
+        .app-icon {
+            font-size: 1.8rem;
+        }
+        .btn-app {
+            background: linear-gradient(95deg, #101a24, #03080f);
+            border: none;
+            padding: 12px 0;
+            width: 100%;
+            border-radius: 40px;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-top: 12px;
+            cursor: pointer;
+            transition: 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: 1px solid #2c5a6e;
+        }
+        .btn-app:active {
+            transform: scale(0.97);
+            background: #0f2c38;
+        }
+        .simple-sign {
+            background: #07141c;
+            border-radius: 1.2rem;
+            padding: 0.8rem;
+            text-align: center;
+            margin-top: 8px;
+            font-size: 1.9rem;
+            font-weight: bold;
+            letter-spacing: 6px;
+            color: #ffe6b3;
+            font-family: monospace;
+        }
+        .sign-controls {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .sign-btn {
+            flex: 1;
+            background: #1c2c36;
+            border: none;
+            padding: 8px;
+            border-radius: 30px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+        .flight-info {
+            background: #00000066;
+            border-radius: 1rem;
+            padding: 10px;
+            font-size: 0.8rem;
+            margin: 8px 0;
+            font-family: monospace;
+        }
+        .affiliate-link {
+            background: #0a1117;
+            border-radius: 1rem;
+            padding: 8px;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+        .dispatch-area {
+            background: #031016b3;
+            border-radius: 1.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+        }
+        .dispatch-commands {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .cmd-btn {
+            background: #2a3b44;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 50px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .cmd-btn:active {
+            background: #0e7a6b;
+        }
+        .feedback {
+            margin-top: 1rem;
+            background: #00000077;
+            border-radius: 2rem;
+            padding: 0.7rem 1rem;
+            font-size: 0.9rem;
+            color: #b3f0ff;
+            border-left: 4px solid #2dd4bf;
+        }
+        .voice-cmd-hint {
+            font-size: 0.7rem;
+            color: #78b9d0;
+            text-align: center;
+            margin-top: 12px;
+        }
+        button {
+            font-family: inherit;
+        }
+        @media (max-width: 780px) {
+            .dashboard { padding: 1rem; }
+            h1 { font-size: 1.3rem; }
+            .card-header { font-size: 0.9rem; }
+        }
+        .warning {
+            color: #ffae70;
+        }
+        .waze-link {
+            background: #1f3e48;
+            border-radius: 2rem;
+            text-align: center;
+            padding: 8px;
+            margin-top: 8px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="header">
+        <h1>
+            🚖 CHAUFFEUR COMMAND 
+            <small>voice-first | eyes on road</small>
+        </h1>
+        <div class="voice-badge">
+            <div id="micButton" class="mic-icon" aria-label="Voice Assistant">🎤</div>
+            <div class="status-text" id="voiceStatus">🎙️ Tap mic / say "Hey Chauffeur"</div>
+        </div>
+    </div>
+
+    <!-- App Grid - all required buttons: ifasttrak, ground widgets Affiliate Pad, Flightware, simple sign, Waze, plus dispatch voice commands -->
+    <div class="app-grid">
+        <!-- iFastTrak card -->
+        <div class="card">
+            <div class="card-header"><span>🛣️ iFastTrak</span><span class="app-icon">⛩️</span></div>
+            <button class="btn-app" id="fastrakBtn">🚀 OPEN FASTRAK PORTAL</button>
+            <div class="flight-info" style="font-size:0.7rem">FastTrak toll & fleet manager</div>
+        </div>
+
+        <!-- Ground Widgets + Affiliate Pad integrated -->
+        <div class="card">
+            <div class="card-header"><span>📦 Ground Widgets | Affiliate Pad</span><span class="app-icon">🔄</span></div>
+            <button class="btn-app" id="groundWidgetsBtn">📡 SHOW GROUND WIDGETS</button>
+            <div class="affiliate-link" id="affiliatePadDisplay">
+                🔗 Affiliate Pad ID: <strong>CHF-PAD-772X</strong><br>
+                <span style="font-size:0.7rem">Last trip ref: LAX2390</span>
+            </div>
+            <button class="cmd-btn" id="refreshAffiliateBtn" style="margin-top:6px; width:100%">⟳ Refresh Affiliate Code</button>
+        </div>
+
+        <!-- Flightware APP -->
+        <div class="card">
+            <div class="card-header"><span>✈️ Flightware APP</span><span class="app-icon">🛬</span></div>
+            <button class="btn-app" id="flightwareBtn">🛰️ TRACK FLIGHTS / FLIGHTWARE</button>
+            <div id="flightSample" class="flight-info">✈️ Live status: Delta 2376 | ON TIME<br>🛬 Arrival gate B7</div>
+        </div>
+
+        <!-- Simple Sign App (digital sign board) -->
+        <div class="card">
+            <div class="card-header"><span>🪧 SIMPLE SIGN</span><span class="app-icon">🏷️</span></div>
+            <div id="digitalSign" class="simple-sign">MR. SMITH</div>
+            <div class="sign-controls">
+                <button class="sign-btn" data-sign="JOHNSON">JOHNSON</button>
+                <button class="sign-btn" data-sign="WILLIAMS">WILLIAMS</button>
+                <button class="sign-btn" data-sign="CUSTOM">✏️ CUSTOM</button>
+            </div>
+        </div>
+
+        <!-- Waze App -->
+        <div class="card">
+            <div class="card-header"><span>🗺️ Waze Navigation</span><span class="app-icon">🧭</span></div>
+            <button class="btn-app" id="wazeBtn">🚗 LAUNCH WAZE</button>
+            <div class="waze-link">📍 Quick: "Navigate to airport" via voice</div>
+        </div>
+    </div>
+
+    <!-- Dispatch & Voice Command Center -->
+    <div class="dispatch-area">
+        <div class="card-header" style="border-left-color: #ffb347; margin-bottom: 0.5rem;">🎙️ DISPATCH VOICE COMMAND CENTER</div>
+        <div class="dispatch-commands">
+            <button class="cmd-btn" data-dispatch="Accept Trip #4892 - pickup 24th & 5th">📢 ACCEPT TRIP #4892</button>
+            <button class="cmd-btn" data-dispatch="Navigate to 7800 World Way, LAX">📍 NAVIGATE TO LAX</button>
+            <button class="cmd-btn" data-dispatch="ETA to destination: 18 minutes">⏱️ REQUEST ETA</button>
+            <button class="cmd-btn" data-dispatch="Passenger waiting - alert dispatch">⚠️ PASSENGER ALERT</button>
+        </div>
+        <div class="feedback" id="feedbackMsg">
+            💡 Voice ready: Say "Hey Chauffeur" then command like "open waze", "show flightware", "set sign to Johnson", "accept trip" or "navigate to airport".
+        </div>
+        <div class="voice-cmd-hint">
+            🎤 Supported voice intents: [open fastrak, open ground widgets, show affiliate pad, open flightware, set sign to X, open waze, accept trip, navigate to ..., refresh affiliate, show flight status, simple sign custom, dispatch message]
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ---------- DOM elements ----------
+        const micBtn = document.getElementById('micButton');
+        const voiceStatusSpan = document.getElementById('voiceStatus');
+        const feedbackDiv = document.getElementById('feedbackMsg');
+
+        // App action buttons
+        const fastrakBtn = document.getElementById('fastrakBtn');
+        const groundWidgetsBtn = document.getElementById('groundWidgetsBtn');
+        const refreshAffiliate = document.getElementById('refreshAffiliateBtn');
+        const flightwareBtn = document.getElementById('flightwareBtn');
+        const wazeBtn = document.getElementById('wazeBtn');
+        const digitalSignDiv = document.getElementById('digitalSign');
+        const signBtns = document.querySelectorAll('.sign-btn');
+        const dispatchBtns = document.querySelectorAll('[data-dispatch]');
+
+        // affiliate update
+        const affiliateDisplay = document.getElementById('affiliatePadDisplay');
+
+        // voice recognition setup
+        let recognition = null;
+        let isListening = false;
+        let wakeWordDetected = false;
+        let pendingCommand = false;
+        let recognitionTimeout = null;
+
+        // SpeechSynthesis for audio prompts
+        function speakText(message, priority = true) {
+            if (!window.speechSynthesis) return;
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.rate = 0.95;
+            utterance.pitch = 1.0;
+            utterance.volume = 1;
+            window.speechSynthesis.cancel(); // avoid overlapping, instant feedback
+            window.speechSynthesis.speak(utterance);
+            // update feedback also visually
+            feedbackDiv.innerHTML = `🔊 ${message}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
+            setTimeout(() => {
+                if (feedbackDiv.innerHTML.includes(message)) {
+                    // keep last line but keep fresh
+                }
+            }, 3000);
+        }
+
+        function showFeedback(text, isVoice = true) {
+            feedbackDiv.innerHTML = `🎙️ ${text}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
+            if (isVoice) speakText(text);
+            else feedbackDiv.innerHTML = `📟 ${text}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
+        }
+
+        // handle app actions
+        function openFastTrak() {
+            showFeedback("Opening iFastTrak portal. Toll manager ready.", true);
+            window.open("https://www.ifasttrak.com/", "_blank") || alert("iFastTrak portal would open (simulated).");
+        }
+        function openGroundWidgets() {
+            showFeedback("Launching Ground Widgets & Affiliate Pad dashboard.", true);
+            // simulate additional info - affiliate pad details
+            const randomCode = "AFF" + Math.floor(Math.random()*9000+1000);
+            affiliateDisplay.innerHTML = `🔗 Affiliate Pad ID: <strong>${randomCode}</strong><br><span style="font-size:0.7rem">Last sync: ${new Date().toLocaleTimeString()}</span>`;
+            speakText("Ground widgets active. Affiliate pad updated.");
+        }
+        function refreshAffiliatePad() {
+            const newCode = "CHF-" + Math.random().toString(36).substring(2,8).toUpperCase();
+            affiliateDisplay.innerHTML = `🔗 Affiliate Pad ID: <strong>${newCode}</strong><br><span style="font-size:0.7rem">Refreshed at ${new Date().toLocaleTimeString()}</span>`;
+            showFeedback(`Affiliate Pad refreshed: ${newCode}`, true);
+        }
+        function openFlightware() {
+            showFeedback("Opening Flightware APP. Real-time flight tracking.", true);
+            // simulate flight update
+            const flights = ["AA 2134 | On Time", "UA 876 | Delayed 12min", "DL 452 | Landed 10:32"];
+            const randomFlight = flights[Math.floor(Math.random()*flights.length)];
+            document.getElementById('flightSample').innerHTML = `✈️ Live: ${randomFlight}<br>🛬 Next update voice ready.`;
+            window.open("https://flightaware.com/live/", "_blank") || alert("Flightaware dashboard would open.");
+        }
+        function openWaze() {
+            showFeedback("Launching Waze navigation. Keep eyes on road, audio guidance active.", true);
+            window.open("https://www.waze.com/live-map", "_blank") || alert("Waze navigation ready.");
+        }
+        function setSimpleSign(name) {
+            digitalSignDiv.innerText = name.toUpperCase().substring(0, 15);
+            showFeedback(`Digital sign changed to "${name.toUpperCase()}"`, true);
+        }
+        function dispatchCommand(cmdText) {
+            showFeedback(`Dispatch: ${cmdText}`, true);
+            // additional chat effect 
+            const dispatchArea = document.querySelector('.dispatch-area');
+            const tempNote = document.createElement('div');
+            tempNote.className = 'flight-info';
+            tempNote.style.marginTop = '8px';
+            tempNote.innerText = `📢 Dispatcher note: "${cmdText}" acknowledged.`;
+            dispatchArea.appendChild(tempNote);
+            setTimeout(() => tempNote.remove(), 4000);
+        }
+
+        // handle sign custom prompt
+        function promptCustomSign() {
+            let newSign = prompt("Enter passenger/company name for digital sign:", "EXECUTIVE");
+            if (newSign && newSign.trim()) setSimpleSign(newSign.trim());
+            else speakText("Custom sign unchanged.");
+        }
+
+        // Event binding for UI buttons
+        fastrakBtn.addEventListener('click', openFastTrak);
+        groundWidgetsBtn.addEventListener('click', openGroundWidgets);
+        refreshAffiliate.addEventListener('click', refreshAffiliatePad);
+        flightwareBtn.addEventListener('click', openFlightware);
+        wazeBtn.addEventListener('click', openWaze);
+        signBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const action = btn.getAttribute('data-sign');
+                if (action === 'CUSTOM') promptCustomSign();
+                else setSimpleSign(action);
+            });
+        });
+        dispatchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const cmd = btn.getAttribute('data-dispatch');
+                dispatchCommand(cmd);
+            });
+        });
+
+        // VOICE RECOGNITION + WAKE WORD "hey chauffeur"
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                isListening = true;
+                micBtn.classList.add('active');
+                voiceStatusSpan.innerHTML = '🎤 Listening... say "Hey Chauffeur"';
+                if (recognitionTimeout) clearTimeout(recognitionTimeout);
+                recognitionTimeout = setTimeout(() => {
+                    if (isListening) stopRecognition();
+                }, 15000);
+            };
+            recognition.onend = () => {
+                isListening = false;
+                micBtn.classList.remove('active');
+                voiceStatusSpan.innerHTML = '🎙️ Idle. Tap mic / "Hey Chauffeur"';
+                wakeWordDetected = false;
+            };
+            recognition.onerror = (event) => {
+                console.warn("Speech error", event.error);
+                if (event.error !== 'no-speech') {
+                    voiceStatusSpan.innerHTML = '⚠️ Voice error, tap mic again';
+                }
+                stopRecognition();
+            };
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                const lowerTranscript = transcript.toLowerCase().trim();
+                if (!wakeWordDetected && (lowerTranscript.includes('hey chauffeur') || lowerTranscript.includes('hey chauff'))) {
+                    wakeWordDetected = true;
+                    speakText("Yes, chauffeur command ready.");
+                    voiceStatusSpan.innerHTML = '🎧 Wake word detected. Say command.';
+                    // reset pending flag, keep listening for next 8 seconds for command
+                    setTimeout(() => {
+                        if (wakeWordDetected && isListening) {
+                            wakeWordDetected = false;
+                            voiceStatusSpan.innerHTML = '🎙️ Command timeout, say wake word again.';
+                            speakText("Command timeout.");
+                        }
+                    }, 8000);
+                    return;
+                }
+                if (wakeWordDetected) {
+                    processVoiceCommand(lowerTranscript);
+                    wakeWordDetected = false; // command consumed, need re-wake
+                    voiceStatusSpan.innerHTML = '🎙️ Command processed. Say "Hey Chauffeur" again.';
+                } else if (lowerTranscript.includes('open') || lowerTranscript.includes('waze') || lowerTranscript.includes('sign') || lowerTranscript.includes('flightware') || lowerTranscript.includes('dispatch') || lowerTranscript.includes('fastrak')) {
+                    // optional: if no wake word but some command like for power users? but safer to require wake word.
+                    speakText("Please say Hey Chauffeur first for safety.");
+                    voiceStatusSpan.innerHTML = '🔇 Please use wake word "Hey Chauffeur"';
+                }
+            };
+        } else {
+            voiceStatusSpan.innerHTML = '❌ Voice not supported';
+            feedbackDiv.innerHTML = '⚠️ Your browser does not support Voice Recognition. Use buttons safely.';
+        }
+
+        function processVoiceCommand(command) {
+            console.log("Voice command:", command);
+            // execute mapped voice actions
+            if (command.includes('open fastrak') || command.includes('fastrak') || (command.includes('open') && command.includes('trak'))) {
+                openFastTrak();
+            }
+            else if (command.includes('ground widgets') || command.includes('affiliate pad') || (command.includes('open') && command.includes('ground'))) {
+                openGroundWidgets();
+            }
+            else if (command.includes('refresh affiliate') || command.includes('update affiliate')) {
+                refreshAffiliatePad();
+            }
+            else if (command.includes('flightware') || command.includes('open flight') || (command.includes('track') && command.includes('flight'))) {
+                openFlightware();
+            }
+            else if (command.includes('waze') || command.includes('navigate')) {
+                openWaze();
+                // optional: if includes 'to airport' or location
+                if (command.includes('airport') || command.includes('lax')) {
+                    speakText("Setting Waze to LAX airport. Please confirm on screen.");
+                }
+            }
+            else if (command.includes('set sign to')) {
+                let match = command.match(/set sign to ([\w\s]+)/i);
+                let signName = match ? match[1].trim() : null;
+                if (signName) setSimpleSign(signName);
+                else speakText("Please say a name for the sign, for example set sign to Johnson.");
+            }
+            else if (command.includes('sign') && command.includes('custom')) {
+                promptCustomSign();
+            }
+            else if (command.includes('accept trip') || command.includes('accept dispatch')) {
+                dispatchCommand("Trip accepted via voice – proceed to pickup");
+            }
+            else if (command.includes('navigate to') || (command.includes('drive to') && command.includes('dispatch'))) {
+                let locationMatch = command.match(/navigate to (.+)/i) || command.match(/drive to (.+)/i);
+                let destination = locationMatch ? locationMatch[1] : "client location";
+                dispatchCommand(`Navigation requested to ${destination}. Opening Waze.`);
+                openWaze();
+            }
+            else if (command.includes('eta') || command.includes('time to destination')) {
+                dispatchCommand("ETA to destination: approximately 22 minutes based on live traffic");
+            }
+            else if (command.includes('show flight status') || command.includes('flight info')) {
+                const randomUpdate = `Flight status: Arrival ${Math.floor(Math.random()*60)} min, gate B${Math.floor(Math.random()*20)+1}`;
+                document.getElementById('flightSample').innerHTML = `✈️ ${randomUpdate}`;
+                speakText(randomUpdate);
+            }
+            else if (command.includes('passenger waiting') || command.includes('alert dispatch')) {
+                dispatchCommand("Passenger waiting alert sent to dispatch office");
+            }
+            else {
+                speakText("Command not recognized. Try: open fastrak, set sign to Williams, open waze, or accept trip.");
+            }
+        }
+
+        function startRecognition() {
+            if (!recognition) {
+                alert("Voice recognition not supported in this browser. Please use buttons.");
+                return;
+            }
+            if (isListening) {
+                stopRecognition();
+                setTimeout(() => startRecognition(), 200);
+                return;
+            }
+            try {
+                recognition.start();
+            } catch(e) {
+                console.warn(e);
+                voiceStatusSpan.innerHTML = 'Restarting mic...';
+                setTimeout(() => {
+                    try { recognition.start(); } catch(e2){}
+                }, 300);
+            }
+        }
+        function stopRecognition() {
+            if (recognition && isListening) {
+                try { recognition.stop(); } catch(e) {}
+            }
+        }
+        micBtn.addEventListener('click', () => {
+            if (isListening) stopRecognition();
+            else startRecognition();
+        });
+        // auto initial guidance
+        speakText("Chauffeur dashboard active. All apps ready. Use buttons or voice. Say Hey Chauffeur to start voice command.", false);
+        // additional safety: while driving, audio prompt on page load
+        setTimeout(() => {
+            showFeedback("✅ Dashboard ready. iFastTrak, Ground Widgets, Flightware, Sign & Waze online. Dispatch voice active.", false);
+        }, 500);
+    })();
+</script>
+</body>
+</html>
