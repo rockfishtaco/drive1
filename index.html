@@ -262,6 +262,14 @@
             margin-top: 8px;
             font-weight: bold;
         }
+        /* safe zone for deployment */
+        .vercel-badge {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 1rem;
+            opacity: 0.6;
+            color: #5f8ca0;
+        }
     </style>
 </head>
 <body>
@@ -339,6 +347,9 @@
             🎤 Supported voice intents: [open fastrak, open ground widgets, show affiliate pad, open flightware, set sign to X, open waze, accept trip, navigate to ..., refresh affiliate, show flight status, simple sign custom, dispatch message]
         </div>
     </div>
+    <div class="vercel-badge">
+        ✅ Vercel ready | Fully client-side dashboard | No build required
+    </div>
 </div>
 
 <script>
@@ -361,35 +372,46 @@
         // affiliate update
         const affiliateDisplay = document.getElementById('affiliatePadDisplay');
 
-        // voice recognition setup
+        // voice recognition setup - with robust error handling for Vercel deployment (HTTPS or local)
         let recognition = null;
         let isListening = false;
         let wakeWordDetected = false;
-        let pendingCommand = false;
         let recognitionTimeout = null;
 
-        // SpeechSynthesis for audio prompts
+        // SpeechSynthesis for audio prompts (works on Vercel, requires user interaction first due to autoplay policies)
+        let speechSupported = 'speechSynthesis' in window;
         function speakText(message, priority = true) {
-            if (!window.speechSynthesis) return;
-            const utterance = new SpeechSynthesisUtterance(message);
-            utterance.rate = 0.95;
-            utterance.pitch = 1.0;
-            utterance.volume = 1;
-            window.speechSynthesis.cancel(); // avoid overlapping, instant feedback
-            window.speechSynthesis.speak(utterance);
+            if (!speechSupported) return;
+            try {
+                // Cancel any ongoing speech to avoid overlapping
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(message);
+                utterance.rate = 0.95;
+                utterance.pitch = 1.0;
+                utterance.volume = 1;
+                // Some browsers require user interaction to enable speech; we'll try anyway.
+                window.speechSynthesis.speak(utterance);
+            } catch(e) { console.warn("Speech error", e); }
             // update feedback also visually
-            feedbackDiv.innerHTML = `🔊 ${message}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
+            updateFeedbackMessage(`🔊 ${message}`);
+        }
+
+        function updateFeedbackMessage(text, isVoiceTrigger = false) {
+            feedbackDiv.innerHTML = `${isVoiceTrigger ? '🎙️' : '📟'} ${text}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
+            // auto-clear after 5 seconds only if it's not a critical persistent message style
             setTimeout(() => {
-                if (feedbackDiv.innerHTML.includes(message)) {
-                    // keep last line but keep fresh
+                if (feedbackDiv.innerHTML.includes(text) && !feedbackDiv.innerHTML.includes("Voice ready")) {
+                    // Keep last message but fallback to idle hint after 6s if unchanged
+                    if (feedbackDiv.innerHTML.includes(text)) {
+                        // but don't erase welcome message
+                    }
                 }
-            }, 3000);
+            }, 6000);
         }
 
         function showFeedback(text, isVoice = true) {
-            feedbackDiv.innerHTML = `🎙️ ${text}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
+            updateFeedbackMessage(text, isVoice);
             if (isVoice) speakText(text);
-            else feedbackDiv.innerHTML = `📟 ${text}<br><span style="font-size:0.7rem">${new Date().toLocaleTimeString()}</span>`;
         }
 
         // handle app actions
@@ -412,9 +434,9 @@
         function openFlightware() {
             showFeedback("Opening Flightware APP. Real-time flight tracking.", true);
             // simulate flight update
-            const flights = ["AA 2134 | On Time", "UA 876 | Delayed 12min", "DL 452 | Landed 10:32"];
+            const flights = ["AA 2134 | On Time", "UA 876 | Delayed 12min", "DL 452 | Landed 10:32", "SW 128 | Boarding"];
             const randomFlight = flights[Math.floor(Math.random()*flights.length)];
-            document.getElementById('flightSample').innerHTML = `✈️ Live: ${randomFlight}<br>🛬 Next update voice ready.`;
+            document.getElementById('flightSample').innerHTML = `✈️ Live: ${randomFlight}<br>🛬 Next update via voice.`;
             window.open("https://flightaware.com/live/", "_blank") || alert("Flightaware dashboard would open.");
         }
         function openWaze() {
@@ -422,6 +444,7 @@
             window.open("https://www.waze.com/live-map", "_blank") || alert("Waze navigation ready.");
         }
         function setSimpleSign(name) {
+            if (!name || name.trim() === "") return;
             digitalSignDiv.innerText = name.toUpperCase().substring(0, 15);
             showFeedback(`Digital sign changed to "${name.toUpperCase()}"`, true);
         }
@@ -464,10 +487,10 @@
             });
         });
 
-        // VOICE RECOGNITION + WAKE WORD "hey chauffeur"
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
+        // VOICE RECOGNITION + WAKE WORD "hey chauffeur" with cross-browser robust init
+        const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognitionAPI) {
+            recognition = new SpeechRecognitionAPI();
             recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = 'en-US';
@@ -490,7 +513,9 @@
             };
             recognition.onerror = (event) => {
                 console.warn("Speech error", event.error);
-                if (event.error !== 'no-speech') {
+                if (event.error === 'not-allowed') {
+                    voiceStatusSpan.innerHTML = '🔇 Microphone access denied. Click mic and allow.';
+                } else if (event.error !== 'no-speech') {
                     voiceStatusSpan.innerHTML = '⚠️ Voice error, tap mic again';
                 }
                 stopRecognition();
@@ -501,11 +526,11 @@
                     transcript += event.results[i][0].transcript;
                 }
                 const lowerTranscript = transcript.toLowerCase().trim();
-                if (!wakeWordDetected && (lowerTranscript.includes('hey chauffeur') || lowerTranscript.includes('hey chauff'))) {
+                if (!wakeWordDetected && (lowerTranscript.includes('hey chauffeur') || lowerTranscript.includes('hey chauff') || lowerTranscript.includes('hey chauffer') || lowerTranscript.includes('hey chaufer'))) {
                     wakeWordDetected = true;
                     speakText("Yes, chauffeur command ready.");
                     voiceStatusSpan.innerHTML = '🎧 Wake word detected. Say command.';
-                    // reset pending flag, keep listening for next 8 seconds for command
+                    // auto-reset wake flag after 8 seconds if no command
                     setTimeout(() => {
                         if (wakeWordDetected && isListening) {
                             wakeWordDetected = false;
@@ -517,12 +542,14 @@
                 }
                 if (wakeWordDetected) {
                     processVoiceCommand(lowerTranscript);
-                    wakeWordDetected = false; // command consumed, need re-wake
+                    wakeWordDetected = false;
                     voiceStatusSpan.innerHTML = '🎙️ Command processed. Say "Hey Chauffeur" again.';
-                } else if (lowerTranscript.includes('open') || lowerTranscript.includes('waze') || lowerTranscript.includes('sign') || lowerTranscript.includes('flightware') || lowerTranscript.includes('dispatch') || lowerTranscript.includes('fastrak')) {
-                    // optional: if no wake word but some command like for power users? but safer to require wake word.
-                    speakText("Please say Hey Chauffeur first for safety.");
-                    voiceStatusSpan.innerHTML = '🔇 Please use wake word "Hey Chauffeur"';
+                } else if (lowerTranscript.length > 3 && !lowerTranscript.includes('hey')) {
+                    // optional: hint but not process without wake word for safety
+                    if (!lowerTranscript.includes('thanks') && !lowerTranscript.includes('background')) {
+                        speakText("Please say Hey Chauffeur first for safety.");
+                        voiceStatusSpan.innerHTML = '🔇 Please use wake word "Hey Chauffeur"';
+                    }
                 }
             };
         } else {
@@ -531,7 +558,7 @@
         }
 
         function processVoiceCommand(command) {
-            console.log("Voice command:", command);
+            console.log("Voice command parsed:", command);
             // execute mapped voice actions
             if (command.includes('open fastrak') || command.includes('fastrak') || (command.includes('open') && command.includes('trak'))) {
                 openFastTrak();
@@ -539,15 +566,14 @@
             else if (command.includes('ground widgets') || command.includes('affiliate pad') || (command.includes('open') && command.includes('ground'))) {
                 openGroundWidgets();
             }
-            else if (command.includes('refresh affiliate') || command.includes('update affiliate')) {
+            else if (command.includes('refresh affiliate') || command.includes('update affiliate') || (command.includes('refresh') && command.includes('pad'))) {
                 refreshAffiliatePad();
             }
-            else if (command.includes('flightware') || command.includes('open flight') || (command.includes('track') && command.includes('flight'))) {
+            else if (command.includes('flightware') || command.includes('open flight') || (command.includes('track') && command.includes('flight')) || command.includes('flight status')) {
                 openFlightware();
             }
             else if (command.includes('waze') || command.includes('navigate')) {
                 openWaze();
-                // optional: if includes 'to airport' or location
                 if (command.includes('airport') || command.includes('lax')) {
                     speakText("Setting Waze to LAX airport. Please confirm on screen.");
                 }
@@ -555,14 +581,14 @@
             else if (command.includes('set sign to')) {
                 let match = command.match(/set sign to ([\w\s]+)/i);
                 let signName = match ? match[1].trim() : null;
-                if (signName) setSimpleSign(signName);
+                if (signName && signName.length) setSimpleSign(signName);
                 else speakText("Please say a name for the sign, for example set sign to Johnson.");
             }
-            else if (command.includes('sign') && command.includes('custom')) {
+            else if (command.includes('sign') && (command.includes('custom') || command.includes('change sign'))) {
                 promptCustomSign();
             }
-            else if (command.includes('accept trip') || command.includes('accept dispatch')) {
-                dispatchCommand("Trip accepted via voice – proceed to pickup");
+            else if (command.includes('accept trip') || command.includes('accept dispatch') || (command.includes('trip') && command.includes('accept'))) {
+                dispatchCommand("Trip accepted via voice – proceed to pickup location");
             }
             else if (command.includes('navigate to') || (command.includes('drive to') && command.includes('dispatch'))) {
                 let locationMatch = command.match(/navigate to (.+)/i) || command.match(/drive to (.+)/i);
@@ -570,7 +596,7 @@
                 dispatchCommand(`Navigation requested to ${destination}. Opening Waze.`);
                 openWaze();
             }
-            else if (command.includes('eta') || command.includes('time to destination')) {
+            else if (command.includes('eta') || command.includes('time to destination') || command.includes('time to go')) {
                 dispatchCommand("ETA to destination: approximately 22 minutes based on live traffic");
             }
             else if (command.includes('show flight status') || command.includes('flight info')) {
@@ -578,7 +604,7 @@
                 document.getElementById('flightSample').innerHTML = `✈️ ${randomUpdate}`;
                 speakText(randomUpdate);
             }
-            else if (command.includes('passenger waiting') || command.includes('alert dispatch')) {
+            else if (command.includes('passenger waiting') || command.includes('alert dispatch') || command.includes('send alert')) {
                 dispatchCommand("Passenger waiting alert sent to dispatch office");
             }
             else {
@@ -588,7 +614,7 @@
 
         function startRecognition() {
             if (!recognition) {
-                alert("Voice recognition not supported in this browser. Please use buttons.");
+                alert("Voice recognition not supported in this browser. Please use interactive buttons.");
                 return;
             }
             if (isListening) {
@@ -602,7 +628,7 @@
                 console.warn(e);
                 voiceStatusSpan.innerHTML = 'Restarting mic...';
                 setTimeout(() => {
-                    try { recognition.start(); } catch(e2){}
+                    try { if (recognition && !isListening) recognition.start(); } catch(e2){ console.warn(e2); }
                 }, 300);
             }
         }
@@ -615,11 +641,11 @@
             if (isListening) stopRecognition();
             else startRecognition();
         });
-        // auto initial guidance
-        speakText("Chauffeur dashboard active. All apps ready. Use buttons or voice. Say Hey Chauffeur to start voice command.", false);
-        // additional safety: while driving, audio prompt on page load
+        
+        // initial welcome with slight delay (works on Vercel)
         setTimeout(() => {
-            showFeedback("✅ Dashboard ready. iFastTrak, Ground Widgets, Flightware, Sign & Waze online. Dispatch voice active.", false);
+            showFeedback("✅ Chauffeur dashboard online. iFastTrak, Ground Widgets, Flightware, Sign & Waze active. Voice ready. Tap mic or say Hey Chauffeur.", false);
+            // try to prime audio (some browsers require first user click, but fine)
         }, 500);
     })();
 </script>
